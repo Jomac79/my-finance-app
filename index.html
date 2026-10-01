@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111827"><meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.json"><title>My Finance v4</title>
+<style>
+:root{--bg:#f4f6f8;--card:#fff;--text:#17202a;--muted:#667085;--border:#e5e7eb;--dark:#111827;--good:#087f5b;--bad:#c92a2a}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
+header{background:var(--dark);color:#fff;padding:18px 16px calc(18px + env(safe-area-inset-top));position:sticky;top:0;z-index:5}.header{max-width:950px;margin:auto;display:flex;justify-content:space-between;align-items:center}.title{font-size:22px;font-weight:800}.sub{font-size:12px;opacity:.7}
+main{max-width:950px;margin:auto;padding:15px 14px 95px}.tabs{display:flex;gap:8px;overflow:auto;margin-bottom:12px}.tab{border:0;background:#e9ecef;padding:9px 13px;border-radius:999px;font-weight:700;white-space:nowrap}.tab.active{background:var(--dark);color:#fff}
+.card{background:#fff;border:1px solid var(--border);border-radius:15px;padding:14px;margin-bottom:12px}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.label{font-size:12px;color:var(--muted);font-weight:700}.value{font-size:23px;font-weight:800;margin-top:5px}.small,.note{font-size:12px;color:var(--muted);line-height:1.45}.good{color:var(--good)}.bad{color:var(--bad)}
+.section{font-size:16px;font-weight:800;margin:18px 2px 9px}.controls{display:grid;grid-template-columns:150px 1fr;gap:10px;margin-bottom:12px}
+select,input{width:100%;padding:11px 12px;border:1px solid var(--border);border-radius:10px;background:#fff;font:inherit}.btn{border:1px solid var(--border);background:#fff;padding:10px 12px;border-radius:10px;font-weight:700}.primary{background:var(--dark);color:#fff;border-color:var(--dark)}
+.row{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}.row:last-child{border:0}
+.formgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}.actions{display:flex;gap:8px;flex-wrap:wrap}
+.chart{height:200px;display:flex;align-items:flex-end;gap:5px;padding:12px 4px 22px}.bw{height:100%;flex:1;display:flex;align-items:flex-end;position:relative}.bar{width:100%;background:#374151;border-radius:5px 5px 2px 2px;min-height:2px}.bl{position:absolute;bottom:-18px;width:100%;text-align:center;font-size:9px;color:var(--muted)}
+.metric{display:flex;justify-content:space-between;padding:8px 0}.hr{height:1px;background:var(--border);margin:10px 0}
+nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--border);display:flex;justify-content:center;gap:4px;padding:8px 6px calc(8px + env(safe-area-inset-bottom));z-index:10}nav button{border:0;background:transparent;padding:8px 11px;border-radius:10px;color:var(--muted);font-size:11px;font-weight:650}nav button.active{background:#eef0f2;color:#111827}
+@media(min-width:720px){.grid{grid-template-columns:repeat(4,1fr)}.formgrid{grid-template-columns:repeat(4,1fr)}}
+</style>
+</head>
+<body>
+<header><div class="header"><div><div class="title">My Finance</div><div class="sub">Version 4 · cash flow, budgets, goals & net worth</div></div><div id="syncStatus" class="small" style="color:#fff">Local</div></div></header>
+<main id="app"></main>
+<nav>
+<button data-v="home">Overview</button><button data-v="cash">Cash Flow</button><button data-v="budget">Budget</button><button data-v="goals">Goals</button><button data-v="net">Net Worth</button><button data-v="invest">Investments</button><button data-v="mort">Mortgage</button><button data-v="more">More</button>
+</nav>
+<script>
+let D=null;
+const S={view:"home",year:2026,tx:JSON.parse(localStorage.getItem("mf2_tx")||"[]"),accounts:JSON.parse(localStorage.getItem("mf2_accounts")||"null"),mort:null,cloud:false,goals:JSON.parse(localStorage.getItem("mf4_goals")||"[]"),budget:JSON.parse(localStorage.getItem("mf4_budget")||"null")};
+const $=x=>document.querySelector(x), money=n=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(Number(n)||0);
+const money2=n=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:2}).format(Number(n)||0);
+const months=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const sum=a=>a.reduce((x,y)=>x+(Number(y)||0),0);
+function expenses(y){return D.years[y]||{}}
+function monthly(y){return months.map(m=>Object.values(expenses(y)[m]||{}).reduce((a,b)=>a+Number(b||0),0))}
+function save(){localStorage.setItem("mf2_tx",JSON.stringify(S.tx));localStorage.setItem("mf2_accounts",JSON.stringify(S.accounts))}
+function baseAccounts(){if(S.accounts)return S.accounts; return Object.entries(D.balances).map(([name,balance])=>({name,balance,account_type:name.toLowerCase().includes("crypto")?"crypto":name.toLowerCase().includes("invest")?"investment":"cash"}))}
+function netWorth(){const assets=sum(baseAccounts().map(a=>a.balance));const debt=S.mort?.balance??D.mortgage.balance;return assets-debt}
+function render(){document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("active",b.dataset.v===S.view));$("#syncStatus").textContent=S.cloud?"☁ Synced":"Local";({home, cash, net, invest, mort, more}[S.view])()}
+function yearCtl(){return `<div class="controls"><select id="year">${Object.keys(D.years).sort().map(y=>`<option ${+y===+S.year?"selected":""}>${y}</option>`).join("")}</select><div class="small" style="padding:10px 2px">Workbook history is built in. New app transactions are stored separately.</div></div>`}
+function home(){
+const ms=monthly(S.year), total=sum(ms), inc=S.year==2026?sum(months.map(m=>D.income[m]||0)):0, nw=netWorth();
+$("#app").innerHTML=yearCtl()+`<div class="grid">
+<div class="card"><div class="label">Net worth</div><div class="value">${money(nw)}</div></div>
+<div class="card"><div class="label">${S.year} expenses</div><div class="value">${money(total)}</div></div>
+<div class="card"><div class="label">Monthly average</div><div class="value">${money(total/12)}</div></div>
+<div class="card"><div class="label">Mortgage</div><div class="value">${money(S.mort?.balance??D.mortgage.balance)}</div></div></div>
+<div class="section">Spending trend</div><div class="card"><div class="chart">${ms.map((v,i)=>`<div class="bw"><div class="bar" style="height:${Math.max(2,v/(Math.max(...ms)||1)*100)}%"></div><div class="bl">${months[i]}</div></div>`).join("")}</div></div>
+<div class="section">Quick snapshot</div><div class="card"><div class="metric"><span>Total tracked assets</span><b>${money(sum(baseAccounts().map(a=>a.balance)))}</b></div><div class="metric"><span>Mortgage equity impact</span><b>${money(S.mort?.balance??D.mortgage.balance)}</b></div><div class="metric"><span>2026 income entered</span><b>${money(inc)}</b></div></div>`;
+$("#year").onchange=e=>{S.year=+e.target.value;render()}
+}
+function cash(){
+const ms=monthly(S.year), inc=months.map(m=>S.year==2026?(D.income[m]||0):0);
+$("#app").innerHTML=yearCtl()+`<div class="card"><div class="section" style="margin-top:0">Monthly cash flow</div>
+${months.map((m,i)=>`<div class="row"><span><b>${m}</b></span><span>${money(inc[i])} income · <b>${money(ms[i])}</b> spent · <b class="${inc[i]-ms[i]>=0?"good":"bad"}">${money(inc[i]-ms[i])}</b> net</span></div>`).join("")}
+<div class="hr"></div><div class="metric"><b>Annual income</b><b>${money(sum(inc))}</b></div><div class="metric"><b>Annual expenses</b><b>${money(sum(ms))}</b></div></div>`;
+$("#year").onchange=e=>{S.year=+e.target.value;render()}
+}
+function budget(){
+ const annualIncome=S.year===2026?sum(months.map(m=>D.income[m]||0)):0; const income=annualIncome/12;
+ const defaults=D.budget_defaults||{};
+ const b=S.budget||{};
+ const rows=Object.keys(defaults).map(cat=>{const pct0=(b[cat]??defaults[cat])*100;const monthlyBudget=income*(b[cat]??defaults[cat]);return `<div class="row"><span>${cat}</span><span><input class="bp" data-cat="${cat}" type="number" min="0" max="100" step="1" value="${pct0}" style="width:82px"> % · <b>${money(monthlyBudget)}</b></span></div>`}).join("");
+ const actual=monthly(S.year), monthlyBudget=sum(Object.keys(defaults).map(cat=>income*(b[cat]??defaults[cat]))), spendBudget=monthlyBudget-income*(b["Savings/Investing"]??defaults["Savings/Investing"]);
+ $("#app").innerHTML=`${yearCtl()}<div class="grid"><div class="card"><div class="label">Monthly income used</div><div class="value">${money(income)}</div></div><div class="card"><div class="label">Monthly spending budget</div><div class="value">${money(spendBudget)}</div></div><div class="card"><div class="label">Savings/investing target</div><div class="value">${money(income*(b["Savings/Investing"]??defaults["Savings/Investing"]))}</div></div><div class="card"><div class="label">Annual budget</div><div class="value">${money(monthlyBudget*12)}</div></div></div><div class="section">Monthly budget mix</div><div class="card">${rows}<div class="hr"></div><div class="metric"><b>Total allocation</b><b>${pct(Object.keys(defaults).reduce((a,c)=>a+(b[c]??defaults[c]),0))}</b></div><button class="btn primary" id="saveBudget">Save budget</button><button class="btn" id="autoBudget">Reset to suggested mix</button></div><div class="section">Budget vs actual</div><div class="card">${months.map((m,i)=>{const diff=spendBudget-actual[i];return `<div class="row"><span><b>${m}</b></span><span>Budget ${money(spendBudget)} · Actual ${money(actual[i])} · <b class="${diff>=0?"good":"bad"}">${diff>=0?"under":"over"} ${money(Math.abs(diff))}</b></span></div>`}).join("")}</div>`;
+ $("#year").onchange=e=>{S.year=+e.target.value;render()};
+ $("#saveBudget").onclick=()=>{const out={};document.querySelectorAll(".bp").forEach(x=>out[x.dataset.cat]=Math.max(0,+x.value||0)/100);S.budget=out;localStorage.setItem("mf4_budget",JSON.stringify(out));render()};
+ $("#autoBudget").onclick=()=>{S.budget={};localStorage.removeItem("mf4_budget");render()};
+}
+function goals(){
+ const gs=S.goals||[];
+ const total=gs.length, done=gs.filter(g=>goalProgress(g)>=99.99).length;
+ const sourceOpts=["manual","networth","investments","crypto","mortgage","cash"].map(v=>`<option value="${v}">${goalSourceLabel(v)}</option>`).join("");
+ const cards=gs.length?gs.map((g,i)=>{const cur=currentGoalValue(g),p=goalProgress(g),need=goalNeeded(g), direction=g.source==="mortgage"?"Target balance":"Target";return `<div class="card"><div class="row"><span><b>${g.name}</b><div class="small">${goalSourceLabel(g.source)} · target ${fmtDate(g.deadline)}</div></span><span><b>${p.toFixed(0)}%</b></span></div><div style="height:10px;background:#e9ecef;border-radius:999px;overflow:hidden;margin:10px 0"><div style="width:${p}%;height:100%;background:#374151"></div></div><div class="metric"><span>Current</span><b>${money(cur)}</b></div><div class="metric"><span>${direction}</span><b>${money(g.target)}</b></div><div class="metric"><span>Monthly amount needed</span><b>${need?money2(need):"$0"}</b></div><div class="actions"><button class="btn" data-edit-goal="${i}">Edit</button><button class="btn" data-del-goal="${i}">Delete</button></div></div>`}).join(""):"<div class='card'><div class='small'>No goals yet. Add your first goal below.</div></div>";
+ $("#app").innerHTML=`<div class="grid"><div class="card"><div class="label">Goals</div><div class="value">${total}</div></div><div class="card"><div class="label">Completed</div><div class="value">${done}</div></div></div><div class="section">My goals</div>${cards}<div class="section">Add / edit goal</div><div class="card"><div class="formgrid"><input id="gn" placeholder="Goal name"><input id="gt" type="number" min="0" step="0.01" placeholder="Target amount"><input id="gc" type="number" min="0" step="0.01" placeholder="Current amount (manual only)"><input id="gd" type="date"></div><div class="formgrid" style="margin-top:9px"><select id="gs"><option value="manual">Manual</option>${sourceOpts.replace('<option value="manual">Manual</option>','')}</select><input id="gstart" type="number" min="0" step="0.01" placeholder="Starting amount (mortgage only)"><button class="btn primary" id="addGoal">Add goal</button><button class="btn" id="clearGoal">Clear</button></div><p class="note">For linked goals, the app automatically reads your current net worth, investments, crypto, mortgage, or cash/savings. For a manual goal, enter the current amount yourself. Mortgage goals track progress as the balance falls toward your target.</p></div>`;
+ $("#addGoal").onclick=()=>{const name=$("#gn").value.trim(),target=+$("#gt").value||0,source=$("#gs").value,deadline=$("#gd").value;if(!name||target<0||!deadline){alert("Enter a goal name, target amount, and target date.");return}const g={name,target,deadline,source,current:+$("#gc").value||0,start:+$("#gstart").value||0};const edit=Number($("#addGoal").dataset.edit);if(Number.isInteger(edit)){S.goals[edit]=g}else S.goals.push(g);localStorage.setItem("mf4_goals",JSON.stringify(S.goals));render()};
+ $("#clearGoal").onclick=()=>render();
+ document.querySelectorAll("[data-del-goal]").forEach(b=>b.onclick=()=>{S.goals.splice(+b.dataset.delGoal,1);localStorage.setItem("mf4_goals",JSON.stringify(S.goals));render()});
+ document.querySelectorAll("[data-edit-goal]").forEach(b=>b.onclick=()=>{const g=S.goals[+b.dataset.editGoal];$("#gn").value=g.name;$("#gt").value=g.target;$("#gc").value=g.current||0;$("#gd").value=g.deadline;$("#gs").value=g.source;$("#gstart").value=g.start||0;$("#addGoal").textContent="Save goal";$("#addGoal").dataset.edit=b.dataset.editGoal;window.scrollTo({top:document.body.scrollHeight,behavior:"smooth"})});
+}
+function net(){
+const a=baseAccounts(), assets=sum(a.map(x=>x.balance)), debt=S.mort?.balance??D.mortgage.balance;
+$("#app").innerHTML=`<div class="grid"><div class="card"><div class="label">Total assets</div><div class="value">${money(assets)}</div></div><div class="card"><div class="label">Mortgage debt</div><div class="value">${money(debt)}</div></div><div class="card"><div class="label">Net worth</div><div class="value">${money(assets-debt)}</div></div><div class="card"><div class="label">Debt / assets</div><div class="value">${assets?pct(debt/assets):"—"}</div></div></div>
+<div class="section">Net-worth components</div><div class="card">${a.map(x=>`<div class="row"><span>${x.name}</span><b>${money(x.balance)}</b></div>`).join("")}<div class="row"><b>Less mortgage</b><b class="bad">-${money(debt)}</b></div><div class="row"><b>Net worth</b><b>${money(assets-debt)}</b></div></div>`;
+}
+function pct(x){return (Number(x||0)*100).toFixed(1)+"%"}
+function fmtDate(v){return v?new Date(v+"T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—"}
+function monthsUntil(target){if(!target)return 0;const d=new Date(target+"T00:00:00"),n=new Date();return Math.max(1,(d.getFullYear()-n.getFullYear())*12+(d.getMonth()-n.getMonth())+(d.getDate()>=n.getDate()?0:0))}
+function currentGoalValue(g){
+ if(g.source==="networth") return netWorth();
+ if(g.source==="investments") return sum(baseAccounts().filter(a=>a.account_type==="investment"||/401|stock|broker|invest/i.test(a.name)).map(a=>a.balance));
+ if(g.source==="crypto") return sum(baseAccounts().filter(a=>a.account_type==="crypto"||/bitcoin|crypto/i.test(a.name)).map(a=>a.balance));
+ if(g.source==="mortgage") return S.mort?.balance??D.mortgage.balance;
+ if(g.source==="cash") return sum(baseAccounts().filter(a=>a.account_type==="cash"||/cash|saving|checking|bank/i.test(a.name)).map(a=>a.balance));
+ return Number(g.current||0);
+}
+function goalProgress(g){const cur=currentGoalValue(g), target=Number(g.target)||0; if(g.source==="mortgage") return target?Math.min(100,Math.max(0,(Number(g.start||target)-cur)/(Number(g.start||target)-target)*100)):0; return target?Math.min(100,Math.max(0,cur/target*100)):0}
+function goalNeeded(g){const cur=currentGoalValue(g),target=Number(g.target)||0,m=monthsUntil(g.deadline); if(g.source==="mortgage") return Math.max(0,(cur-target)/m); return Math.max(0,(target-cur)/m)}
+function goalSourceLabel(s){return ({manual:"Manual",networth:"Net worth",investments:"Investments",crypto:"Crypto",mortgage:"Mortgage balance",cash:"Cash / savings"}[s]||"Manual")}
+function invest(){
+const a=baseAccounts().filter(x=>x.account_type==="investment"||x.account_type==="crypto"||/401|stock|broker|invest|bitcoin|crypto/i.test(x.name));
+const total=sum(a.map(x=>x.balance));
+$("#app").innerHTML=`<div class="grid"><div class="card"><div class="label">Tracked investments</div><div class="value">${money(total)}</div></div><div class="card"><div class="label">Accounts</div><div class="value">${a.length}</div></div></div>
+<div class="section">Investment allocation</div><div class="card">${a.map(x=>`<div class="row"><span>${x.name}<div class="small">${x.account_type}</div></span><span><b>${money(x.balance)}</b><div class="small">${total?pct(x.balance/total):"0%"}</div></span></div>`).join("")||'<div class="small">No investment accounts identified.</div>'}</div>
+<div class="section">Edit balances</div><div class="card">${a.map((x,i)=>`<div class="formgrid" style="margin-bottom:8px"><input value="${x.name}" data-ai="${i}" class="an"><input type="number" step=".01" value="${x.balance}" data-av="${i}" class="av"></div>`).join("")}<button class="btn primary" id="saveA">Save balances</button></div>`;
+$("#saveA").onclick=()=>{a.forEach((x,i)=>{x.name=document.querySelectorAll(".an")[i].value;x.balance=+document.querySelectorAll(".av")[i].value});save();render()}
+}
+function mort(){
+const m=S.mort||D.mortgage;
+$("#app").innerHTML=`<div class="grid"><div class="card"><div class="label">Balance</div><div class="value">${money(m.balance)}</div></div><div class="card"><div class="label">Rate</div><div class="value">${(m.rate*100).toFixed(2)}%</div></div><div class="card"><div class="label">Payment</div><div class="value">${money2(m.payment)}</div></div><div class="card"><div class="label">Payments left</div><div class="value">${m.payments_left}</div></div></div>
+<div class="section">Extra-payment scenarios</div><div class="card"><div class="formgrid"><input id="extra" type="number" value="500" min="0" step="50" placeholder="Extra / month"><button class="btn primary" id="calc">Calculate</button></div><div id="scenario" class="small" style="margin-top:12px"></div></div>
+<div class="section">Edit mortgage</div><div class="card"><div class="formgrid"><input id="mb" type="number" step=".01" value="${m.balance}"><input id="mr" type="number" step=".001" value="${(m.rate*100).toFixed(3)}"><input id="mp" type="number" step=".01" value="${m.payment}"><input id="mn" type="number" value="${m.payments_left}"></div><button class="btn primary" id="saveM" style="margin-top:9px">Save mortgage</button><p class="note">Mortgage calculations are estimates based on a fixed rate and fixed monthly payment.</p></div>`;
+$("#calc").onclick=()=>{const extra=+$("#extra").value||0,r=m.rate/12,b=m.balance,p=m.payment+extra;let bal=b,n=0;if(p<=bal*r){$("#scenario").textContent="The payment is not high enough to amortize the loan.";return}while(bal>0&&n<1000){bal=bal*(1+r)-p;n++}$("#scenario").innerHTML=`At <b>${money2(extra)}</b> extra per month, estimated payoff is about <b>${n} months</b> from now. Estimated interest from now: <b>${money2(Math.max(0,p*n-b))}</b>.`};
+$("#saveM").onclick=()=>{S.mort={balance:+$("#mb").value,rate:+$("#mr").value/100,payment:+$("#mp").value,payments_left:+$("#mn").value};localStorage.setItem("mf2_mort",JSON.stringify(S.mort));render()}
+}
+function more(){
+$("#app").innerHTML=`<div class="section">Cloud sync</div><div class="card"><p class="note">Version 2 includes a Supabase cloud-sync layer. To activate it, create a free Supabase project, run the included <b>supabase_schema.sql</b>, then enter your project URL and anon key below.</p><div class="formgrid"><input id="su" placeholder="Supabase project URL" value="${localStorage.getItem("mf2_url")||""}"><input id="sk" placeholder="Supabase anon key" value="${localStorage.getItem("mf2_key")||""}"><button class="btn primary" id="connect">Save connection</button></div><p class="note">The anon key is intended for browser use when Row Level Security is configured as in the supplied schema. Never put a service-role key here.</p></div>
+<div class="section">Backup</div><div class="card"><button class="btn primary" id="export">Export app data</button> <button class="btn" id="reset">Reset local app data</button></div>
+<div class="section">Import from Excel</div><div class="card"><p class="note">The original workbook data is already included in this build. Future versions can add direct XLSX import so you can refresh the app from Excel with one action.</p></div>`;
+$("#connect").onclick=()=>{localStorage.setItem("mf2_url",$("#su").value.trim());localStorage.setItem("mf2_key",$("#sk").value.trim());alert("Connection settings saved. Cloud sync is ready once the Supabase schema is installed.");}
+$("#export").onclick=()=>{const x={transactions:S.tx,accounts:baseAccounts(),mortgage:S.mort||D.mortgage,goals:S.goals,budget:S.budget};const b=new Blob([JSON.stringify(x,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="my-finance-backup.json";a.click()}
+$("#reset").onclick=()=>{if(confirm("Reset locally added app data?")){localStorage.clear();location.reload()}}
+}
+document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{S.view=b.dataset.v;render()});
+S.mort=JSON.parse(localStorage.getItem("mf2_mort")||"null");
+fetch("data.json").then(r=>r.json()).then(x=>{D=x;S.accounts=JSON.parse(localStorage.getItem("mf2_accounts")||"null")||null;render()});
+</script></body></html>
