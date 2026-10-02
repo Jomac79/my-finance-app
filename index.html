@@ -157,7 +157,55 @@ const total=sum(a.map(x=>x.balance));
 $("#app").innerHTML=`<div class="grid"><div class="card"><div class="label">Tracked investments</div><div class="value">${money(total)}</div></div><div class="card"><div class="label">Accounts</div><div class="value">${a.length}</div></div></div>
 <div class="section">Investment allocation</div><div class="card">${a.map(x=>`<div class="row"><span>${x.name}<div class="small">${x.account_type}</div></span><span><b>${money(x.balance)}</b><div class="small">${total?pct(x.balance/total):"0%"}</div></span></div>`).join("")||'<div class="small">No investment accounts identified.</div>'}</div>
 <div class="section">Edit balances</div><div class="card">${a.map((x,i)=>`<div class="formgrid" style="margin-bottom:8px"><input value="${x.name}" data-ai="${i}" class="an"><input type="number" step=".01" value="${x.balance}" data-av="${i}" class="av"></div>`).join("")}<button class="btn primary" id="saveA">Save balances</button></div>`;
-$("#saveA").onclick=()=>{a.forEach((x,i)=>{x.name=document.querySelectorAll(".an")[i].value;x.balance=+document.querySelectorAll(".av")[i].value});save();render()}
+$("#saveA").onclick=async()=>{
+  const all=baseAccounts();
+
+  a.forEach((x,i)=>{
+    x.name=document.querySelectorAll(".an")[i].value;
+    x.balance=+document.querySelectorAll(".av")[i].value;
+  });
+
+  S.accounts=all;
+  save();
+
+  const { data:{ user } } = await supabaseClient.auth.getUser();
+
+  if(!user){
+    alert("Please sign in again.");
+    return;
+  }
+
+  const { error: deleteError } = await supabaseClient
+    .from("Accounts")
+    .delete()
+    .eq("user_id",user.id);
+
+  if(deleteError){
+    console.error("Supabase delete error:",deleteError);
+    alert("Your local changes were saved, but Supabase could not be updated.");
+    return;
+  }
+
+  const rows=S.accounts.map(x=>({
+    user_id:user.id,
+    name:x.name,
+    balance:x.balance,
+    account_type:x.account_type||"cash"
+  }));
+
+  const { error: insertError } = await supabaseClient
+    .from("Accounts")
+    .insert(rows);
+
+  if(insertError){
+    console.error("Supabase insert error:",insertError);
+    alert("Your local changes were saved, but Supabase could not be updated.");
+    return;
+  }
+
+  S.cloud=true;
+  render();
+  alert("Account balances saved to Supabase!");
 }
 function mort(){
 const m=S.mort||D.mortgage;
