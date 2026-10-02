@@ -104,6 +104,155 @@ $("#app").innerHTML=yearCtl()+`<div class="grid">
 $("#year").onchange=e=>{S.year=+e.target.value;render()}
 }
 function cash(){
+  const ms=monthly(S.year);
+  const inc=months.map(m=>S.year==2026?(D.income[m]||0):0);
+
+  const txs=(S.tx||[]).filter(t=>Number(t.year||new Date(t.date).getFullYear())===Number(S.year));
+
+  $("#app").innerHTML=yearCtl()+`
+  <div class="card">
+    <div class="section" style="margin-top:0">Add transaction</div>
+
+    <div class="formgrid">
+      <input id="txDate" type="date" value="${new Date().toISOString().slice(0,10)}">
+      <input id="txAmount" type="number" min="0" step="0.01" placeholder="Amount">
+      <input id="txCategory" type="text" placeholder="Category">
+      <input id="txDescription" type="text" placeholder="Description">
+    </div>
+
+    <div class="actions" style="margin-top:9px">
+      <button class="btn primary" id="saveTx">Save transaction</button>
+    </div>
+
+    <p class="note">
+      Enter the amount as a positive number. The transaction will be saved locally and can be synced to Supabase later.
+    </p>
+  </div>
+
+  <div class="card">
+    <div class="section" style="margin-top:0">Monthly cash flow</div>
+
+    ${months.map((m,i)=>`
+      <div class="row">
+        <span><b>${m}</b></span>
+        <span>
+          ${money(inc[i])} income ·
+          <b>${money(ms[i])}</b> spent ·
+          <b class="${inc[i]-ms[i]>=0?"good":"bad"}">
+            ${money(inc[i]-ms[i])} net
+          </b>
+        </span>
+      </div>
+    `).join("")}
+
+    <div class="hr"></div>
+
+    <div class="metric">
+      <b>Annual income</b>
+      <b>${money(sum(inc))}</b>
+    </div>
+
+    <div class="metric">
+      <b>Annual expenses</b>
+      <b>${money(sum(ms))}</b>
+    </div>
+  </div>
+
+  <div class="section">App transactions</div>
+
+  <div class="card">
+    ${
+      txs.length
+      ? txs.slice().reverse().map((t,i)=>`
+        <div class="row">
+          <span>
+            <b>${t.category||"Uncategorized"}</b>
+            <div class="small">
+              ${t.date||""}${t.description?" · "+t.description:""}
+            </div>
+          </span>
+          <span>
+            <b>${money2(t.amount)}</b>
+          </span>
+        </div>
+      `).join("")
+      : `<div class="small">No app transactions saved for ${S.year} yet.</div>`
+    }
+  </div>
+  `;
+
+  $("#year").onchange=e=>{
+    S.year=+e.target.value;
+    render();
+  };
+
+  $("#saveTx").onclick=async()=>{
+    const date=$("#txDate").value;
+    const amount=Number($("#txAmount").value);
+    const category=$("#txCategory").value.trim();
+    const description=$("#txDescription").value.trim();
+
+    if(!date){
+      alert("Please enter a date.");
+      return;
+    }
+
+    if(!Number.isFinite(amount)||amount<=0){
+      alert("Please enter a valid amount greater than 0.");
+      return;
+    }
+
+    if(!category){
+      alert("Please enter a category.");
+      return;
+    }
+
+    const transaction={
+      id:crypto.randomUUID(),
+      date,
+      year:Number(date.slice(0,4)),
+      amount,
+      category,
+      description
+    };
+
+    S.tx.push(transaction);
+
+    localStorage.setItem("mf2_tx",JSON.stringify(S.tx));
+
+    const {data:{user}}=await supabaseClient.auth.getUser();
+
+    if(user){
+      const {error}=await supabaseClient
+        .from("Transactions")
+        .insert({
+          id:transaction.id,
+          user_id:user.id,
+          date:transaction.date,
+          amount:transaction.amount,
+          category:transaction.category,
+          description:transaction.description
+        });
+
+      if(error){
+        console.error("Supabase transaction error:",error);
+        alert("Transaction saved locally, but Supabase could not be updated.");
+        render();
+        return;
+      }
+
+      S.cloud=true;
+    }
+
+    alert("Transaction saved successfully!");
+
+    $("#txAmount").value="";
+    $("#txCategory").value="";
+    $("#txDescription").value="";
+
+    render();
+  };
+}
 const ms=monthly(S.year), inc=months.map(m=>S.year==2026?(D.income[m]||0):0);
 $("#app").innerHTML=yearCtl()+`<div class="card"><div class="section" style="margin-top:0">Monthly cash flow</div>
 ${months.map((m,i)=>`<div class="row"><span><b>${m}</b></span><span>${money(inc[i])} income · <b>${money(ms[i])}</b> spent · <b class="${inc[i]-ms[i]>=0?"good":"bad"}">${money(inc[i]-ms[i])}</b> net</span></div>`).join("")}
