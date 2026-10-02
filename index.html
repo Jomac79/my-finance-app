@@ -253,12 +253,6 @@ function cash(){
     render();
   };
 }
-const ms=monthly(S.year), inc=months.map(m=>S.year==2026?(D.income[m]||0):0);
-$("#app").innerHTML=yearCtl()+`<div class="card"><div class="section" style="margin-top:0">Monthly cash flow</div>
-${months.map((m,i)=>`<div class="row"><span><b>${m}</b></span><span>${money(inc[i])} income · <b>${money(ms[i])}</b> spent · <b class="${inc[i]-ms[i]>=0?"good":"bad"}">${money(inc[i]-ms[i])}</b> net</span></div>`).join("")}
-<div class="hr"></div><div class="metric"><b>Annual income</b><b>${money(sum(inc))}</b></div><div class="metric"><b>Annual expenses</b><b>${money(sum(ms))}</b></div></div>`;
-$("#year").onchange=e=>{S.year=+e.target.value;render()}
-}
 function budget(){
  const annualIncome=S.year===2026?sum(months.map(m=>D.income[m]||0)):0; const income=annualIncome/12;
  const defaults=D.budget_defaults||{};
