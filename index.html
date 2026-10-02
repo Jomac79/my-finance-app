@@ -33,7 +33,7 @@ const SUPABASE_URL = "https://rlavzhzjevhzogvhkkfn.supabase.co";
 const SUPABASE_KEY = "sb_publishable_g5trk3uzXEQucr46_wm9UA_Cfys1pOb";
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 supabaseClient
-  .from("financial_data")
+  .from("Financial Data")
   .select("id")
   .limit(1)
   .then(({ data, error }) => {
