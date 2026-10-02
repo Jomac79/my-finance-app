@@ -29,6 +29,9 @@ nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid 
 </nav>
 <script>
 let D=null;
+const SUPABASE_URL = "https://rlavzhzjevhzogvhkkfn.supabase.co/rest/v1/";
+const SUPABASE_KEY = "sb_publishable_g5trk3uzXEQucr46_wm9UA_Cfys1pOb";
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const S={view:"home",year:2026,tx:JSON.parse(localStorage.getItem("mf2_tx")||"[]"),accounts:JSON.parse(localStorage.getItem("mf2_accounts")||"null"),mort:null,cloud:false,goals:JSON.parse(localStorage.getItem("mf4_goals")||"[]"),budget:JSON.parse(localStorage.getItem("mf4_budget")||"null")};
 const $=x=>document.querySelector(x), money=n=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(Number(n)||0);
 const money2=n=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:2}).format(Number(n)||0);
