@@ -126,4 +126,15 @@ $("#reset").onclick=()=>{if(confirm("Reset locally added app data?")){localStora
 document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{S.view=b.dataset.v;render()});
 S.mort=JSON.parse(localStorage.getItem("mf2_mort")||"null");
 fetch("data.json").then(r=>r.json()).then(x=>{D=x;S.accounts=JSON.parse(localStorage.getItem("mf2_accounts")||"null")||null;render()});
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script>
+  const SUPABASE_URL = "https://rlavzhzjevhzogvhkkfn.supabase.co/rest/v1/";
+  const SUPABASE_KEY = "sb_publishable_g5trk3uzXEQucr46_wm9UA_Cfys1pOb";
+
+  const supabase = window.supabase.createClient(
+    SUPABASE_URL,
+    SUPABASE_KEY
+  );
+</script> 
 </script></body></html>
