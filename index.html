@@ -23,6 +23,20 @@ nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid 
 </head>
 <body>
 <header><div class="header"><div><div class="title">My Finance</div><div class="sub">Version 4 · cash flow, budgets, goals & net worth</div></div><div id="syncStatus" class="small" style="color:#fff">Local</div></div></header>
+<div id="loginScreen" style="display:none;max-width:420px;margin:40px auto;padding:20px;">
+  <div class="card">
+    <div class="section">Sign in to My Finance</div>
+
+    <input id="loginEmail" type="email" placeholder="Email" style="margin-bottom:10px;">
+    <input id="loginPassword" type="password" placeholder="Password" style="margin-bottom:10px;">
+
+    <button id="loginButton" class="btn primary" style="width:100%;">
+      Sign In
+    </button>
+
+    <div id="loginMessage" class="small" style="margin-top:10px;"></div>
+  </div>
+</div>
 <main id="app"></main>
 <nav>
 <button data-v="home">Overview</button><button data-v="cash">Cash Flow</button><button data-v="budget">Budget</button><button data-v="goals">Goals</button><button data-v="net">Net Worth</button><button data-v="invest">Investments</button><button data-v="mort">Mortgage</button><button data-v="more">More</button>
@@ -32,25 +46,40 @@ let D=null;
 const SUPABASE_URL = "https://rlavzhzjevhzogvhkkfn.supabase.co";
 const SUPABASE_KEY = "sb_publishable_g5trk3uzXEQucr46_wm9UA_Cfys1pOb";
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-supabaseClient
-  .from("Financial Data")
-  .insert([
-    {
-      Category: "Test",
-      Amount: 1,
-      Description: "Supabase connection test",
-      Date: "2026-10-02",
-      Type: "Test"
-    }
-  ])
-  .select()
-  .then(({ data, error }) => {
-    if (error) {
-      console.error("SUPABASE INSERT ERROR:", error);
-    } else {
-      console.log("SUPABASE INSERT SUCCESS:", data);
-    }
+supabaseClient.auth.onAuthStateChange((event, session) => {
+  const loginScreen = document.getElementById("loginScreen");
+  const app = document.getElementById("app");
+  const nav = document.querySelector("nav");
+
+  if (session) {
+    loginScreen.style.display = "none";
+    app.style.display = "";
+    nav.style.display = "";
+    console.log("Signed in successfully");
+  } else {
+    loginScreen.style.display = "block";
+    app.style.display = "none";
+    nav.style.display = "none";
+  }
+});
+
+document.getElementById("loginButton").onclick = async () => {
+  const email = document.getElementById("loginEmail").value;
+  const password = document.getElementById("loginPassword").value;
+  const message = document.getElementById("loginMessage");
+
+  message.textContent = "Signing in...";
+
+  const { error } = await supabaseClient.auth.signInWithPassword({
+    email,
+    password
   });
+
+  if (error) {
+    message.textContent = error.message;
+    console.error("Login error:", error);
+  }
+};  
 const S={view:"home",year:2026,tx:JSON.parse(localStorage.getItem("mf2_tx")||"[]"),accounts:JSON.parse(localStorage.getItem("mf2_accounts")||"null"),mort:null,cloud:false,goals:JSON.parse(localStorage.getItem("mf4_goals")||"[]"),budget:JSON.parse(localStorage.getItem("mf4_budget")||"null")};
 const $=x=>document.querySelector(x), money=n=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(Number(n)||0);
 const money2=n=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:2}).format(Number(n)||0);
